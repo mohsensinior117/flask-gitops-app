@@ -1,0 +1,9 @@
+# Namespace: Logical isolation for our application
+# Like a folder to keep everything organized
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flask-app
+  labels:
+    app: flask-gitops
+    managed-by: argocd

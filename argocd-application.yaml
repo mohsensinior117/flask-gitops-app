@@ -1,0 +1,39 @@
+# ArgoCD Application: Defines what to deploy and from where
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app
+  namespace: argocd
+  # Finalizer for proper cleanup
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  # Project (default is fine for now)
+  project: default
+  
+  # Source: Where is the code?
+  source:
+    # !!! IMPORTANT: Replace with YOUR repository !!!
+    https://github.com/mohsensinior117/flask-gitops-app.git
+    targetRevision: main
+    path: k8s  # Directory containing manifests
+  
+  # Destination: Where to deploy?
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flask-app
+  
+  # Sync policy: How to deploy?
+  syncPolicy:
+    # Auto-create namespace if doesn't exist
+    syncOptions:
+      - CreateNamespace=true
+    
+    # Automated sync (optional - for now we'll do manual)
+    # automated:
+    #   prune: true      # Delete resources not in Git
+    #   selfHeal: true   # Revert manual changes
+    #   allowEmpty: false
+  
+  # Ignore differences (if any)
+  ignoreDifferences: []

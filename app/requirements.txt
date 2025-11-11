@@ -1,0 +1,8 @@
+# Flask web framework
+Flask==3.0.0
+
+# Production WSGI server
+gunicorn==21.2.0
+
+# For better logging
+python-json-logger==2.0.7
