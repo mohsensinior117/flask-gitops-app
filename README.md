@@ -64,10 +64,3 @@ Deployed using GitOps methodology:
 
 DevOps learning project - GitOps CI/CD Pipeline
 
----
-
-**Built with ❤️ for learning GitOps**
-```
-
-
-
