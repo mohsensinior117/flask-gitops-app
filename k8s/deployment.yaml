@@ -31,7 +31,7 @@ spec:
         - name: ghcr-secret
       containers:
       - name: flask-app
-        image: ghcr.io/mohsensinior117/flask-gitops-app:main-119850e
+        image: ghcr.io/mohsensinior117/flask-gitops-app:main-25c2a49
         imagePullPolicy: Always
         
         ports:
