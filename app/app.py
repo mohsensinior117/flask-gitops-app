@@ -20,7 +20,7 @@ def home():
     Home endpoint - returns basic app info
     """
     return jsonify({
-        'message': 'Hello ,Welcome to Flask GitOps App!',
+        'message': 'Welcome to Flask GitOps App!',
         'version': APP_VERSION,
         'environment': ENVIRONMENT,
         'status': 'running'
