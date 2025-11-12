@@ -27,6 +27,8 @@ spec:
         component: backend
         version: v1.0.0
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
       - name: flask-app
         image: ghcr.io/mohsensinior117/flask-gitops-app:latest
