@@ -1,0 +1,26 @@
+# Staging environment kustomization
+# Production-like configuration for final testing
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - namespace.yaml
+
+namespace: flask-app-staging
+
+patches:
+  - path: patches/deployment-patch.yaml
+  - path: patches/service-patch.yaml
+
+labels:
+  - pairs:
+      environment: staging
+      tier: staging
+
+namePrefix: staging-
+
+images:
+  - name: ghcr.io/mohsensinior117/flask-gitops-app
+    newTag: latest

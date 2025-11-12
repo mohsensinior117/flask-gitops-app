@@ -1,0 +1,55 @@
+# Production environment patches
+# High availability and performance
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+  labels:
+    environment: production
+spec:
+  # 3 replicas for HA
+  replicas: 3
+  
+  # Stricter update strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero downtime!
+  
+  template:
+    metadata:
+      labels:
+        environment: production
+    spec:
+      # Production-grade settings
+      containers:
+      - name: flask-app
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: LOG_LEVEL
+          value: "WARNING"
+        
+        # Higher resources
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        
+        # Conservative probes (avoid false restarts)
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3

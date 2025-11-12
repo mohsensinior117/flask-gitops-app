@@ -1,0 +1,31 @@
+# Development environment kustomization
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference base (new syntax)
+resources:
+  - ../../base
+  - namespace.yaml  # Dev-specific namespace
+
+# Set namespace for all resources
+namespace: flask-app-dev
+
+# Apply environment-specific patches
+patches:
+  - path: patches/deployment-patch.yaml
+  - path: patches/service-patch.yaml
+
+# Environment-specific labels (new syntax)
+labels:
+  - pairs:
+      environment: development
+      tier: dev
+
+# Name prefix
+namePrefix: dev-
+
+# Image configuration
+images:
+  - name: ghcr.io/mohsensinior117/flask-gitops-app
+    newTag: latest
