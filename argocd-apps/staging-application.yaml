@@ -1,0 +1,38 @@
+# ArgoCD Application for Staging Environment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app-staging
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    environment: staging
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/mohsensinior117/flask-gitops-app.git
+    targetRevision: main
+    path: environments/overlays/staging
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flask-app-staging
+  
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    
+    # Auto-sync for staging too
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

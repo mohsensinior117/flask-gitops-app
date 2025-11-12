@@ -1,0 +1,46 @@
+# ArgoCD Application for Development Environment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    environment: development
+spec:
+  project: default
+  
+  # Source: where is the code?
+  source:
+    repoURL: https://github.com/mohsensinior117/flask-gitops-app.git
+    targetRevision: main
+    path: environments/overlays/dev  # Dev overlay path
+  
+  # Destination: where to deploy?
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flask-app-dev
+  
+  # Sync policy: auto or manual?
+  syncPolicy:
+    # Auto-create namespace
+    syncOptions:
+      - CreateNamespace=true
+    
+    # Automated sync for dev (fast iterations)
+    automated:
+      prune: true       # Delete resources not in Git
+      selfHeal: true    # Revert manual changes
+      allowEmpty: false
+    
+    # Retry configuration
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  
+  # Ignore differences (if any)
+  ignoreDifferences: []

@@ -1,0 +1,36 @@
+# ArgoCD Application for Production Environment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flask-app-production
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  labels:
+    environment: production
+    criticality: high
+spec:
+  project: default
+  
+  source:
+    repoURL: https://github.com/mohsensinior117/flask-gitops-app.git
+    targetRevision: main
+    path: environments/overlays/production
+  
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flask-app-production
+  
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+    
+    # Manual sync for production (more control)
+    # automated: null  # Commented out = manual
+    
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
