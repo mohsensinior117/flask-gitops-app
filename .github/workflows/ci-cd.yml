@@ -1,4 +1,3 @@
-# GitHub Actions Workflow for Flask GitOps Application
 name: CI/CD Pipeline
 
 on:
@@ -9,9 +8,7 @@ on:
       - 'README.md'
       - 'docs/**'
       - '.gitignore'
-  pull_request:
-    branches:
-      - main
+      - 'k8s/**'
 
 env:
   REGISTRY: ghcr.io
@@ -21,33 +18,22 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-
+      
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r app/requirements.txt
-
-      - name: Run tests with pytest
-        run: |
-          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: false
+      
+      - name: Run tests
+        run: pytest tests/ -v --cov=app --cov-report=term
 
   security-scan:
     name: Security Scan
@@ -56,13 +42,10 @@ jobs:
     permissions:
       contents: read
       security-events: write
-      actions: read
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner in fs mode
+      - uses: actions/checkout@v4
+      
+      - name: Run Trivy scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -70,113 +53,109 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy results to GitHub Security
+      
+      - name: Upload results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
 
-  build-and-push:
-    name: Build and Push Docker Image
+  build-push:
+    name: Build and Push
     runs-on: ubuntu-latest
     needs: [test, security-scan]
     permissions:
       contents: read
       packages: write
       security-events: write
-      actions: read
-
-    outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
-      image-digest: ${{ steps.build.outputs.digest }}
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
+      - uses: actions/checkout@v4
+      
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run Trivy vulnerability scanner on image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          format: 'sarif'
-          output: 'trivy-image-results.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy image results
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-image-results.sarif'
-
-  update-manifests:
-    name: Update Kubernetes Manifests
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-
-      - name: Update image tag in deployment
+      
+      - name: Build and Push
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           
-          # این pattern هر image ای که flask-gitops-app داره رو replace میکنه
-          sed -i "s|image:.*flask-gitops-app.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-$SHORT_SHA|g" k8s/deployment.yaml
+          docker build -t ghcr.io/${{ github.repository }}:latest .
+          docker build -t ghcr.io/${{ github.repository }}:main .
+          docker build -t ghcr.io/${{ github.repository }}:main-$SHORT_SHA .
           
-          echo "Updated deployment.yaml:"
-          grep "image:" k8s/deployment.yaml
+          docker push ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:main
+          docker push ghcr.io/${{ github.repository }}:main-$SHORT_SHA
+          
+          echo "image_tag=main-$SHORT_SHA" >> $GITHUB_OUTPUT
+        id: build
+      
+      - name: Scan image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:latest
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+      
+      - name: Upload image scan
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-image.sarif'
 
-      - name: Commit and push changes
+  update-manifest:
+    name: Update Manifest
+    runs-on: ubuntu-latest
+    needs: build-push
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Pull latest changes
         run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
+          git config pull.rebase false
+          git pull origin main || true
+      
+      - name: Update deployment
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          
+          sed -i "s|image:.*flask-gitops-app.*|image: ghcr.io/${{ github.repository }}:main-$SHORT_SHA|g" k8s/deployment.yaml
+          
+          echo "Updated to: main-$SHORT_SHA"
+          grep "image:" k8s/deployment.yaml
+      
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           
           git add k8s/deployment.yaml
           
           if git diff --staged --quiet; then
-            echo "No changes to commit"
+            echo "No changes"
           else
-            git commit -m "chore: update image to ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-$SHORT_SHA"
-            git push
+            git commit -m "chore: update image to main-$(echo ${{ github.sha }} | cut -c1-7) [skip ci]"
+            
+            # Pull again before push to avoid conflicts
+            git pull --rebase origin main || true
+            
+            # Push with retry
+            for i in 1 2 3; do
+              if git push origin main; then
+                echo "Push successful"
+                break
+              else
+                echo "Push failed, retrying in 5s..."
+                sleep 5
+                git pull --rebase origin main || true
+              fi
+            done
           fi
